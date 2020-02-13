@@ -43,6 +43,7 @@
 		"vscode-test": "^1.3.0"
 	},
 	"dependencies": {
+		"amazon-user-pool-srp-client": "^1.0.3",
 		"axios": "^0.19.2"
 	}
 }
