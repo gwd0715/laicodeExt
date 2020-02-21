@@ -1,0 +1,15 @@
+<svg width="38" height="36" xmlns="http://www.w3.org/2000/svg">
+
+ <g>
+  <title>background</title>
+  <rect fill="none" id="canvas_background" height="38" width="40" y="-1" x="-1"/>
+ </g>
+ <g>
+  <title>Layer 1</title>
+  <path fill="#0093dd" d="m28.361,10.185l-28.361,0l10.691,-10.185l28.361,0l-10.691,10.185z" id="路径_1586"/>
+  <path fill="#00b7ff" d="m10.691,27.019l0,-27.019l-10.691,10.185l0,27.015l10.691,-10.181z" id="路径_1587"/>
+  <path fill="#0093dd" d="m10.691,27.019l28.361,0l-10.691,10.185l-28.361,0l10.691,-10.185z" id="路径_1588"/>
+  <path fill="#00b7ff" d="m28.361,10.185l0,27.015l10.691,-10.181l0,-27.019l-10.691,10.185z" id="路径_1589"/>
+  <path fill="#00b7ff" d="m29.4,13.014" id="路径_1590"/>
+ </g>
+</svg>
