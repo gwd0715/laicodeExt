@@ -1,3 +1,9 @@
-import { login } from "./login";
+var obj = {
+	a: 1,
+	b: 2
+};
 
-login.login();
+function foo(x, y) {
+	console.log(this);
+	console.log(x, y);
+}

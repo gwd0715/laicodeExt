@@ -1,94 +1,142 @@
-import axios, { AxiosRequestConfig } from "axios";
 import * as vscode from "vscode";
-import * as _config from "./config";
+import { authTarget, UserStatus, IUserProfile, URL } from "./config";
 import { SRPClient, calculateSignature, getNowString } from "amazon-user-pool-srp-client";
 import { EventEmitter } from "events";
 import { user } from "./user";
+import { session } from "./session";
+import { post } from "./post";
 
 class Login extends EventEmitter {
-	private userPoolId: string;
-	private clientId: string;
-	private srp: SRPClient;
-	private authOptions: AxiosRequestConfig;
+	private _userPoolId: string = "ZgqDM85jL";
+	private _clientId: string = "75ggv6olvnaf0qpbm4cbmcd4t3";
+	private _srp: SRPClient = new SRPClient(this._userPoolId);
+	private _username: string | undefined;
+	private _password: string | undefined;
+
 	constructor() {
 		super();
-		this.userPoolId = "ZgqDM85jL";
-		this.clientId = "75ggv6olvnaf0qpbm4cbmcd4t3";
-		this.srp = new SRPClient(this.userPoolId);
-		this.authOptions = {
-			url: _config.URL.auth,
-			method: "post",
-			headers: _config.postHeaders,
-			data: "",
-			transformResponse: (data: any) => data
-		};
 	}
-	private async call(options: AxiosRequestConfig) {
+
+	public async login(): Promise<void> {
 		try {
-			const response = await axios(options);
-			return JSON.parse(response.data);
-		} catch (err) {
-			return console.log(JSON.parse(err.response.data));
+			if (user.username === "") {
+				const userInfo: string | undefined = await this.inputUserNameAndPwd();
+				if (!userInfo) {
+					return;
+				}
+			} else {
+				this._username = user.username;
+				this._password = user.password;
+			}
+			//initAuth--get chanllenge name and challenge parameters
+			post.postHeaders["X-Amz-Target"] = authTarget.initAuth;
+			const SRP_A = this._srp.calculateA();
+			const initAuthData = {
+				AuthFlow: "USER_SRP_AUTH",
+				ClientId: this._clientId,
+				AuthParameters: {
+					USERNAME: this._username,
+					SRP_A: SRP_A
+				},
+				ClientMetaData: {}
+			};
+			const { ChallengeName, ChallengeParameters } = await post.post(URL.auth, initAuthData);
+			if (!ChallengeName) {
+				vscode.window.showErrorMessage("User does not exist");
+				return;
+			}
+
+			//respond to chanllenge
+			const hkdf = this._srp.getPasswordAuthenticationKey(
+				ChallengeParameters.USER_ID_FOR_SRP,
+				this._password,
+				ChallengeParameters.SRP_B,
+				ChallengeParameters.SALT
+			);
+			const dateNow: string = getNowString();
+			const signatureString: string = calculateSignature(
+				hkdf,
+				this._userPoolId,
+				ChallengeParameters.USER_ID_FOR_SRP,
+				ChallengeParameters.SECRET_BLOCK,
+				dateNow
+			);
+			const respondData = {
+				ChallengeName,
+				ClientId: this._clientId,
+				ChallengeResponses: {
+					USERNAME: ChallengeParameters.USER_ID_FOR_SRP,
+					PASSWORD_CLAIM_SECRET_BLOCK: ChallengeParameters.SECRET_BLOCK,
+					TIMESTAMP: dateNow,
+					PASSWORD_CLAIM_SIGNATURE: signatureString
+				}
+			};
+			post.postHeaders["X-Amz-Target"] = authTarget.respondChallenge;
+			var { AuthenticationResult } = await post.post(URL.auth, respondData);
+			if (!AuthenticationResult) {
+				vscode.window.showErrorMessage("Wrong Password");
+				return;
+			}
+
+			//get IdToken
+			const getTokenData = {
+				ClientId: this._clientId,
+				AuthFlow: "REFRESH_TOKEN_AUTH",
+				AuthParameters: {
+					REFRESH_TOKEN: AuthenticationResult.RefreshToken,
+					DEVICE_KEY: null
+				}
+			};
+			post.postHeaders["X-Amz-Target"] = authTarget.initAuth;
+			var { AuthenticationResult } = await post.post(URL.auth, getTokenData);
+			user.userStatus = UserStatus.Login;
+			vscode.window.showInformationMessage("Login Success");
+
+			//save user profile with session to local
+			const userprofile: IUserProfile = {
+				userId: ChallengeParameters.USER_ID_FOR_SRP,
+				username: this._username!,
+				password: this._password!,
+				session: AuthenticationResult
+			};
+			session.setSession(JSON.stringify(userprofile));
+
+			//refresh user instance
+			user.refreshUserInfo();
+
+			//check session and get givenname
+			session.checkSession();
+		} catch (error) {
+			console.log(error);
 		}
 	}
-	public async login() {
-		//initAuth--get chanllenge name and challenge parameters
-		_config.postHeaders["X-Amz-Target"] = _config.authTarget.initAuth;
-		const SRP_A = this.srp.calculateA();
-		const initAuthData = {
-			AuthFlow: "USER_SRP_AUTH",
-			ClientId: this.clientId,
-			AuthParameters: {
-				USERNAME: user.getUsername(),
-				SRP_A: SRP_A
-			},
-			ClientMetaData: {}
-		};
-		this.authOptions.data = JSON.stringify(initAuthData);
-		const { ChallengeName, ChallengeParameters } = await this.call(this.authOptions);
 
-		//respond to chanllenge
-		const hkdf = this.srp.getPasswordAuthenticationKey(
-			ChallengeParameters.USER_ID_FOR_SRP,
-			user.getPassword(),
-			ChallengeParameters.SRP_B,
-			ChallengeParameters.SALT
-		);
-		const dateNow = getNowString();
-		const signatureString = calculateSignature(
-			hkdf,
-			this.userPoolId,
-			ChallengeParameters.USER_ID_FOR_SRP,
-			ChallengeParameters.SECRET_BLOCK,
-			dateNow
-		);
-		const respondData = {
-			ChallengeName,
-			ClientId: this.clientId,
-			ChallengeResponses: {
-				USERNAME: ChallengeParameters.USER_ID_FOR_SRP,
-				PASSWORD_CLAIM_SECRET_BLOCK: ChallengeParameters.SECRET_BLOCK,
-				TIMESTAMP: dateNow,
-				PASSWORD_CLAIM_SIGNATURE: signatureString
-			}
-		};
-		_config.postHeaders["X-Amz-Target"] = _config.authTarget.respondChallenge;
-		this.authOptions.data = JSON.stringify(respondData);
-		var { AuthenticationResult } = await this.call(this.authOptions);
-		console.log(AuthenticationResult);
-		//get IdToken
-		const getTokenData = {
-			ClientId: this.clientId,
-			AuthFlow: "REFRESH_TOKEN_AUTH",
-			AuthParameters: {
-				REFRESH_TOKEN: AuthenticationResult.RefreshToken,
-				DEVICE_KEY: null
-			}
-		};
-		_config.postHeaders["X-Amz-Target"] = _config.authTarget.initAuth;
-		this.authOptions.data = JSON.stringify(getTokenData);
-		var { AuthenticationResult } = await this.call(this.authOptions);
-		console.log(AuthenticationResult);
+	private async inputUserNameAndPwd() {
+		//get username and password
+		this._username = await vscode.window.showInputBox({
+			prompt: "Enter username or E-mail.",
+			ignoreFocusOut: true,
+			validateInput: (s: string): string | undefined =>
+				s && s.trim() ? undefined : "The input must not be empty"
+		});
+		if (!this._username) {
+			return Promise.resolve(undefined);
+		}
+		this._password = await vscode.window.showInputBox({
+			prompt: "Enter password.",
+			password: true,
+			ignoreFocusOut: true,
+			validateInput: (s: string): string | undefined =>
+				s ? undefined : "Password must not be empty"
+		});
+		if (!this._password) {
+			return Promise.resolve(undefined);
+		}
+		return Promise.resolve(this._username);
+	}
+
+	public get authOptions() {
+		return post.postOptions;
 	}
 }
 

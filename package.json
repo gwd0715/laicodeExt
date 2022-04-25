@@ -10,16 +10,47 @@
 		"Other"
 	],
 	"activationEvents": [
-		"onCommand:extension.helloWorld"
+		"onCommand:laicode.login",
+		"onView:laicodeExplorer"
 	],
 	"main": "./out/extension.js",
 	"contributes": {
 		"commands": [
 			{
-				"command": "extension.helloWorld",
-				"title": "Hello World"
+				"command": "laicode.login",
+				"title": "Login to Laicode App",
+				"icon": {
+					"light": "resources/light/signin.svg",
+					"dark": "resources/dark/signin.svg"
+				}
 			}
-		]
+		],
+		"viewsContainers": {
+			"activitybar": [
+				{
+					"id": "laicode",
+					"title": "Laicode",
+					"icon": "resources/laicode.svg"
+				}
+			]
+		},
+		"views": {
+			"laicode": [
+				{
+					"id": "laicodeExplorer",
+					"name": "Problems"
+				}
+			]
+		},
+		"menus": {
+			"view/title": [
+				{
+					"command": "laicode.login",
+					"when": "view == laicodeExplorer",
+					"group": "navigation"
+				}
+			]
+		}
 	},
 	"scripts": {
 		"vscode:prepublish": "npm run compile",
@@ -31,12 +62,13 @@
 	},
 	"devDependencies": {
 		"@types/glob": "^7.1.1",
+		"@types/lodash": "^4.14.149",
 		"@types/mocha": "^7.0.1",
 		"@types/node": "^12.11.7",
 		"@types/vscode": "^1.42.0",
-		"eslint": "^6.8.0",
-		"@typescript-eslint/parser": "^2.18.0",
 		"@typescript-eslint/eslint-plugin": "^2.18.0",
+		"@typescript-eslint/parser": "^2.18.0",
+		"eslint": "^6.8.0",
 		"glob": "^7.1.6",
 		"mocha": "^7.0.1",
 		"typescript": "^3.7.5",
@@ -44,6 +76,7 @@
 	},
 	"dependencies": {
 		"amazon-user-pool-srp-client": "^1.0.3",
-		"axios": "^0.19.2"
+		"axios": "^0.19.2",
+		"lodash": "^4.17.15"
 	}
 }
